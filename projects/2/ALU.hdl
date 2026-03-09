@@ -2,6 +2,7 @@
 // and the book "The Elements of Computing Systems"
 // by Nisan and Schocken, MIT Press.
 // File name: projects/2/ALU.hdl
+
 /**
  * ALU (Arithmetic Logic Unit):
  * Computes out = one of the following functions:
@@ -16,15 +17,6 @@
  * if (out == 0) zr = 1, else zr = 0
  * if (out < 0)  ng = 1, else ng = 0
  */
-// Implementation: Manipulates the x and y inputs
-// and operates on the resulting values, as follows:
-// if (zx == 1) sets x = 0        // 16-bit constant
-// if (nx == 1) sets x = !x       // bitwise not
-// if (zy == 1) sets y = 0        // 16-bit constant
-// if (ny == 1) sets y = !y       // bitwise not
-// if (f == 1)  sets out = x + y  // integer 2's complement addition
-// if (f == 0)  sets out = x & y  // bitwise and
-// if (no == 1) sets out = !out   // bitwise not
 
 CHIP ALU {
     IN  
@@ -41,5 +33,37 @@ CHIP ALU {
         ng;      // if (out < 0)  equals 1, else 0
 
     PARTS:
-    //// Replace this comment with your code.
+    // Handle zx: if zx=1, x1=0; else x1=x
+    Mux16(a=x, b=false, sel=zx, out=x1);
+
+    // Handle nx: if nx=1, x2=!x1; else x2=x1
+    Not16(in=x1, out=notX1);
+    Mux16(a=x1, b=notX1, sel=nx, out=x2);
+
+    // Handle zy: if zy=1, y1=0; else y1=y
+    Mux16(a=y, b=false, sel=zy, out=y1);
+
+    // Handle ny: if ny=1, y2=!y1; else y2=y1
+    Not16(in=y1, out=notY1);
+    Mux16(a=y1, b=notY1, sel=ny, out=y2);
+
+    // Handle f: if f=1, out=x2+y2; else out=x2&y2
+    Add16(a=x2, b=y2, out=addOut);
+    And16(a=x2, b=y2, out=andOut);
+    Mux16(a=andOut, b=addOut, sel=f, out=fOut);
+
+    // Handle no AND generate output flags
+    // We split the output into chunks so we can "read" them for zr and ng
+    Not16(in=fOut, out=notFOut);
+    Mux16(a=fOut, b=notFOut, sel=no, 
+          out=out,            // Final 16-bit output
+          out[0..7]=lowOut,    // Internal wire for lower 8 bits
+          out[8..15]=highOut,  // Internal wire for upper 8 bits
+          out[15]=ng);         // If the highest bit is 1, the number is negative
+
+    // Compute zr: if all bits are 0, zr = 1
+    Or8Way(in=lowOut, out=orLow);
+    Or8Way(in=highOut, out=orHigh);
+    Or(a=orLow, b=orHigh, out=anyOne);
+    Not(in=anyOne, out=zr);
 }
